@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import BaseTemplate from '../components/templates/BaseTemplate'
 import type { Card } from '../types/Card'
-import { deleteDoc, doc, getDoc, updateDoc } from 'firebase/firestore'
-import { db } from '../firebase'
 import { useUser } from '../contexts/UserContext'
+import { deleteCard, getCard, updateCard } from '../lib/firestore'
 
 const CardPage = () => {
   const [card, setCard] = useState<Card>()
@@ -29,22 +28,17 @@ const CardPage = () => {
 
   // カードを取得
   const fetchCard = async () => {
-    if(deckId && cardId) {
+    if(user && deckId && cardId) {
       try {
-        const docRef = doc(db, "users", user.id, "decks", deckId, "cards", cardId)
-        const docSnap = await getDoc(docRef)
+        const c = await getCard(user?.id, deckId, cardId)
   
-        if (docSnap.exists()) {
-          const data = {
-            id: docSnap.id,
-            ...docSnap.data()
-          } as Card
-          setCard(data)
-          setSentence(data.sentence)
-          setWord(data.word)
-          setPronounce(data.pronounce)
-          setMeaning(data.meaning)
-          setTranslate(data.translate)
+        if (c) {
+          setCard(c)
+          setSentence(c.sentence)
+          setWord(c.word)
+          setPronounce(c.pronounce)
+          setMeaning(c.meaning)
+          setTranslate(c.translate)
         } 
       } catch (e) {
         console.log(e)
@@ -53,20 +47,19 @@ const CardPage = () => {
   }
 
   // カード情報編集
-  const editCard = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const card = {
+    const cardInput = [
       sentence,
       word,
       pronounce,
       meaning,
       translate
-    }
+    ]
 
     try {
-      if(deckId && cardId) {
-        const cardRef = doc(db, "users", user.id, "decks", deckId, "cards", cardId)
-        await updateDoc(cardRef, card)
+      if(user && deckId && cardId) {
+        await updateCard(user.id, deckId, cardId, cardInput)
         setSentence("")
         setWord("")
         setPronounce("")
@@ -82,14 +75,13 @@ const CardPage = () => {
     }
   }
 
-  const deleteCard = async() => {
+  const handleDelete = async() => {
     const check = window.confirm("Are you sure?")
     if (!check) return
 
-    if(deckId && cardId) {
+    if(user && deckId && cardId) {
       try {
-        const cardRef = doc(db, "users", user.id, "decks", deckId, "cards", cardId)
-        await deleteDoc(cardRef)
+        await deleteCard(user.id, deckId, cardId)
         navigate(`/deck/${deckId}`)
       } catch (e) {
         console.log(e)
@@ -146,7 +138,7 @@ const CardPage = () => {
           >
             <h3 className='text-xl font-semibold text-center mb-4'>Edit card</h3>
 
-            <form onSubmit={editCard} className='space-y-6'>
+            <form onSubmit={handleUpdate} className='space-y-6'>
               <div>
                 <label className="block text-sm/6 font-medium text-gray-900">Sentence</label>
                 <input
@@ -210,7 +202,7 @@ const CardPage = () => {
               >Save</button>
 
               <button 
-                onClick={deleteCard} 
+                onClick={handleDelete} 
                 className="m-1 flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
               >Delete this card</button>
 

@@ -3,9 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import BaseTemplate from '../components/templates/BaseTemplate'
 import type { Deck } from '../types/Deck'
 import type { Card } from '../types/Card'
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore'
-import { db } from '../firebase'
 import { useUser } from '../contexts/UserContext'
+import { createCard, deleteDeck, getCards, getDeck, updateDeck } from '../lib/firestore'
 
 const DeckPage = () => {
   const [deck, setDeck] = useState<Deck>()
@@ -26,21 +25,14 @@ const DeckPage = () => {
 
   // デッキを取得
   const fetchDeck = async () => {
-    if(id) {
+    if(user && id) {
       try {
-        const docRef = doc(db, "users", user.id, "decks", id)
-        const docSnap = await getDoc(docRef)
-  
-        if (docSnap.exists()) {
-          const data = {
-            id: docSnap.id,
-            ...docSnap.data()
-          } as Deck
-          setDeck(data)
-          setDeckName(data.deckName)
-          setDeckDescription(data.deckDescription)
-          fetchCards(docSnap.id)
-        } 
+        const d = await getDeck(user.id, id)
+        if(d) {
+          setDeck(d)
+          setDeckName(d.deckName)
+          setDeckDescription(d.deckDescription)
+        }
       } catch (e) {
         console.log(e)
       }
@@ -48,15 +40,10 @@ const DeckPage = () => {
   }
 
   // カード一覧を取得
-  const fetchCards = async (docSnapId: string) => {
+  const fetchCards = async () => {
+    if(user && id)
     try {
-      const cardsRef = collection(db, "users", user.id, "decks", docSnapId, "cards")
-      const snapshot = await getDocs(cardsRef)
-      const c = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Card[]
-
+      const c = await getCards(user.id, id)
       setCards(c)
     } catch (e) {
       console.log(e)
@@ -65,17 +52,16 @@ const DeckPage = () => {
   }
 
   // デッキ情報編集
-  const editDeck = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const deck = {
+    const deckInput = [
       deckName,
       deckDescription
-    }
+    ]
 
     try {
-      if(id) {
-        const deckRef = doc(db, "users", user.id, "decks", id)
-        await updateDoc(deckRef, deck)
+      if(user && id) {
+        await updateDeck(user?.id, id, deckInput)
         setDeckName("")
         setDeckDescription("")
         closeModal2()
@@ -88,14 +74,13 @@ const DeckPage = () => {
     }
   }
 
-  const deleteDeck = async() => {
+  const handleDelete = async() => {
     const check = window.confirm("Are you sure?")
     if (!check) return
 
-    if(id) {
+    if(user && id) {
       try {
-        const cardRef = doc(db, "users", user.id, "decks", id)
-        await deleteDoc(cardRef)
+        await deleteDeck(user.id, id)
         navigate("/")
       } catch (e) {
         console.log(e)
@@ -110,21 +95,13 @@ const DeckPage = () => {
   const [meaning, setMeaning] = useState<string>("")
   const [translate, setTranslate] = useState<string>("")
 
-  const createCard = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    const cardInput = [sentence,word,pronounce,meaning,translate]
 
     try {
-      if(id) {
-        const cardRef = collection(db, "users", user.id, "decks", id, "cards")
-        await addDoc(cardRef, {
-          sentence,
-          word,
-          pronounce,
-          meaning,
-          translate,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        })
+      if(user && id) {
+        await createCard(user.id, id, cardInput)
   
         setSentence("")
         setWord("")
@@ -132,7 +109,7 @@ const DeckPage = () => {
         setMeaning("")
         setTranslate("")
         closeModal()
-        fetchCards(id)
+        fetchCards()
       }
 
     } catch (err) {
@@ -142,6 +119,7 @@ const DeckPage = () => {
 
   useEffect(() => {
     fetchDeck()
+    fetchCards()
   },[])
 
   return (
@@ -193,7 +171,7 @@ const DeckPage = () => {
           >
             <h3 className='text-xl font-semibold text-center mb-4'>Create new card</h3>
 
-            <form onSubmit={createCard} className='space-y-6'>
+            <form onSubmit={handleSubmit} className='space-y-6'>
               <div>
                 <label className="block text-sm/6 font-medium text-gray-900">Sentence</label>
                 <input
@@ -277,7 +255,7 @@ const DeckPage = () => {
           >
             <h3 className='text-xl font-semibold text-center mb-4'>Edit Deck</h3>
 
-            <form onSubmit={editDeck} className='space-y-6'>
+            <form onSubmit={handleUpdate} className='space-y-6'>
               <div>
                 <label className="block text-sm/6 font-medium text-gray-900">Deck Name</label>
                 <input
@@ -307,7 +285,7 @@ const DeckPage = () => {
               >Save</button>
 
               <button 
-                onClick={deleteDeck} 
+                onClick={handleDelete} 
                 className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
               >Delete this deck</button>
 

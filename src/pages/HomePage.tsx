@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
-import {  Navigate, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useUser } from '../contexts/UserContext'
 import BaseTemplate from '../components/templates/BaseTemplate'
 import type { Deck } from '../types/Deck'
-import { addDoc, collection, getDocs, serverTimestamp } from 'firebase/firestore'
-import { db } from '../firebase'
+import { createDeck, getDecks } from '../lib/firestore'
 
 const HomePage = () => {
   const navigate = useNavigate()
@@ -22,18 +21,12 @@ const HomePage = () => {
   }, [])
 
   const { user } = useUser()
-  if (!user) return <Navigate to="/signin" />
 
   // デッキ一覧を取得
   const fetchDecks = async () => {
+    if (user)
     try {
-      const decksRef = collection(db, "users", user.id, "decks")
-      const snapshot = await getDocs(decksRef)
-      const d = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Deck[]
-
+      const d = await getDecks(user.id);
       setDecks(d)
     } catch (e) {
       console.log(e)
@@ -42,17 +35,13 @@ const HomePage = () => {
 
 
   // 新規デッキ作成
-  const createDeck = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    const deckInput = [deckName, deckDescription]
 
+    if (user)
     try {
-      const decksRef = collection(db, "users", user.id, "decks")
-      await addDoc(decksRef, {
-        deckName,
-        deckDescription,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
+      await createDeck(user.id, deckInput)
 
       fetchDecks()
       setDeckName("")
@@ -123,7 +112,7 @@ const HomePage = () => {
           >
             <h3 className='text-xl font-semibold text-center mb-4'>Add new deck</h3>
 
-            <form onSubmit={createDeck} className='space-y-6'>
+            <form onSubmit={handleSubmit} className='space-y-6'>
               <div>
                 <label className="block text-sm/6 font-medium text-gray-900">Deck Name</label>
                 <input
