@@ -1,3 +1,5 @@
+import type { Timestamp } from "firebase/firestore"
+
 export type Card = {
     id: string
     sentence: string
@@ -5,6 +7,8 @@ export type Card = {
     pronounce: string
     meaning: string
     translate: string
+    successCount: number
+    nextDate: Timestamp
     createdAt: string
     updatedAt: string
 }

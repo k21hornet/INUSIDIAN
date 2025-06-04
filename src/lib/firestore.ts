@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, updateDoc } from "firebase/firestore"
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, Timestamp, updateDoc, where } from "firebase/firestore"
 import { db } from "../firebase"
 import type { Deck } from "../types/Deck"
 import type { Card } from "../types/Card"
@@ -60,6 +60,8 @@ export const createCard = async (uid: string, did: string, cardInput: string[]) 
         pronounce: cardInput[2],
         meaning: cardInput[3],
         translate: cardInput[4],
+        successCount: 0,
+        nextDate: serverTimestamp(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     })
@@ -67,7 +69,8 @@ export const createCard = async (uid: string, did: string, cardInput: string[]) 
 
 export const getCards = async (uid: string, did: string) => {
     const cardsRef = collection(db, "users", uid, "decks", did, "cards")
-    const snapshot = await getDocs(cardsRef)
+    const q = query(cardsRef, orderBy("createdAt", "desc"))
+    const snapshot = await getDocs(q)
     return snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -101,4 +104,36 @@ export const updateCard = async (uid: string, did: string, cid: string, cardInpu
 export const deleteCard = async (uid: string, did: string, cid: string) => {
     const cardRef = doc(db, "users", uid, "decks", did, "cards", cid)
     await deleteDoc(cardRef)
+}
+
+/** Due */
+export const getDueCards = async (uid: string, did: string) => {
+    // 今日の日付を0:00から23:59までの範囲で取得
+    const now = new Date()
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+
+    const startTimestamp = Timestamp.fromDate(startOfDay)
+    const endTimestamp = Timestamp.fromDate(endOfDay)
+
+    const cardsRef = collection(db, "users", uid, "decks", did, "cards")
+    const q = query(cardsRef,
+        where("nextDate", ">=", startTimestamp),
+        where("nextDate", "<=", endTimestamp)
+    )
+
+    const snapshot = await getDocs(q)
+
+    return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+    })) as Card[]
+}
+
+export const updateDueCard = async (uid: string, did: string, cid: string, count: number, date: Date) => {
+    const cardRef = doc(db, "users", uid, "decks", did, "cards", cid)
+    await updateDoc(cardRef, {
+        successCount: count,
+        nextDate: Timestamp.fromDate(date)
+    })
 }

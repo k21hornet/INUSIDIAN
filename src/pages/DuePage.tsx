@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import axios from 'axios'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import BaseTemplate from '../components/templates/BaseTemplate'
-import type { Due } from '../types/Due'
+import { useUser } from '../contexts/UserContext'
+import { getDueCards, updateDueCard } from '../lib/firestore'
+import type { Card } from '../types/Card'
 
 const DuePage = () => {
-  const [dueCard, setDueCard] = useState<Due | null>()
+  const [dueCard, setDueCard] = useState<Card | null>()
   const [cardCount, setCardCount] = useState<number>()
 
+  const { user } = useUser()
   const { id } = useParams()
   const navigate = useNavigate()
   const [showModal, setShowModal] = useState<boolean>(true)
@@ -19,16 +21,12 @@ const DuePage = () => {
 
   // 今日の単語リストを取得し、ランダムで一問出題する
   const fetchDue = async () => {
+    if(user && id)
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API}/review/due/${id}`, { withCredentials: true })
-
-      if (res.data.length > 0) {
-        const randomNum = Math.floor(Math.random() * res.data.length)
-        setDueCard(res.data[randomNum])
-        setCardCount(res.data.length)
-      } else {
-        setDueCard(null)
-      }
+        const c = await getDueCards(user.id, id)
+        const randomNum = Math.floor(Math.random() * c.length)
+        setDueCard(c[randomNum])
+        setCardCount(c.length)
     } catch (e) {
       console.log(e)
     }
@@ -38,10 +36,16 @@ const DuePage = () => {
   const success = async () => {
     if (!dueCard) return
 
+    const now = new Date()
+    const nextDate = new Date(now)
+    nextDate.setDate(now.getDate() + dueCard.successCount*2 + 1) 
+    const count = dueCard.successCount + 1
+
+    if(user && id)
     try {
-      await axios.post(`${import.meta.env.VITE_API}/review/${dueCard.id}/success`, null, {withCredentials: true})
+      await updateDueCard(user.id, id, dueCard.id, count, nextDate)
       await fetchDue()
-       setShowAnswers(false)
+      setShowAnswers(false)
     } catch (e) {
       console.log(e)      
     }
@@ -51,8 +55,12 @@ const DuePage = () => {
   const failure = async () => {
     if (!dueCard) return
     
+    const now = new Date()
+    const count = 0
+
+    if(user && id)
     try {
-      await axios.post(`${import.meta.env.VITE_API}/review/${dueCard.id}/failure`, null, {withCredentials: true})
+      await updateDueCard(user.id, id, dueCard.id, count, now)
       await fetchDue()
       setShowAnswers(false)
     } catch (e) {
@@ -73,9 +81,9 @@ const DuePage = () => {
         <div className='w-full divide-y divide-gray-100 flex flex-col items-center'>
           {dueCard? (
             <>
-              <p className="flex text-xl justify-between py-2 text-center">{dueCard?.card?.sentence}</p>
-              <p className="flex text-xl justify-between py-2 text-center">{dueCard?.card?.word}</p>
-              <p className="flex text-xl justify-between py-2 text-center mb-10">{dueCard?.card?.pronounce}</p>
+              <p className="flex text-xl justify-between py-2 text-center">{dueCard?.sentence}</p>
+              <p className="flex text-xl justify-between py-2 text-center">{dueCard?.word}</p>
+              <p className="flex text-xl justify-between py-2 text-center mb-10">{dueCard?.pronounce}</p>
 
               <button
                 onClick={toggleAnswers}
@@ -86,8 +94,8 @@ const DuePage = () => {
 
               {showAnswers && (
                 <>
-                  <p className="flex text-xl justify-between py-2 text-center">{dueCard?.card?.meaning}</p>
-                  <p className="flex text-xl justify-between py-2 text-center italic">{dueCard?.card?.translate}</p>
+                  <p className="flex text-xl justify-between py-2 text-center">{dueCard?.meaning}</p>
+                  <p className="flex text-xl justify-between py-2 text-center italic">{dueCard?.translate}</p>
                 </>
               )}
 
@@ -102,7 +110,7 @@ const DuePage = () => {
                 </div>
                 
                 <div className='flex flex-col items-center m-1'>
-                  <p className='text-gray-500'>{dueCard?.nextDateDiff} day</p>
+                  <p className='text-gray-500'>{dueCard?.successCount*2+1} day</p>
                   <button 
                     onClick={success} 
                     className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
